@@ -1,106 +1,184 @@
-import React, { useRef } from "react";
-import {
-    Animated,
-    Dimensions,
-    Easing,
-    Image,
-    ImageRequireSource,
-    PanResponder,
-    SafeAreaView,
-    Text
-} from "react-native";
+import * as React from "react";
+import { useEffect, useState } from "react";
+import { SafeAreaView, Text, TouchableOpacity, View } from "react-native";
+import { NavigationContainer } from "@react-navigation/native";
+import { createMaterialTopTabNavigator } from "@react-navigation/material-top-tabs";
+import Animated from "react-native-reanimated";
+import { MaterialTopTabBarProps } from "@react-navigation/material-top-tabs/lib/typescript/src/types";
+import { useDebounce } from "usehooks-ts";
+import { Slider } from "@miblanchard/react-native-slider";
 
-export const { width: WINDOW_WIDTH, height: WINDOW_HEIGHT } = Dimensions.get("window");
+function MyTabBar({ state, descriptors, navigation, position }: MaterialTopTabBarProps) {
+    return (
+        <View style={{ flexDirection: "row", paddingTop: 20 }}>
+            {state.routes.map((route, index) => {
+                const { options } = descriptors[route.key];
+                const label =
+                    options.tabBarLabel !== undefined
+                        ? options.tabBarLabel
+                        : options.title !== undefined
+                            ? options.title
+                            : route.name;
 
-const data = [{ id: 1, img: require("./src/demo.jpg") },
-    { id: 2, img: require("./src/demo2.jpg") },
-    { id: 3, img: require("./src/demo3.jpg") },
-    { id: 4, img: require("./src/demo4.jpg") }
-];
+                const isFocused = state.index === index;
 
-let _index = 0;
+                const onPress = () => {
+                    const event = navigation.emit({
+                        type: "tabPress",
+                        target: route.key
+                    });
 
-function App() {
+                    if (!isFocused && !event.defaultPrevented) {
+                        navigation.navigate(route.name);
+                    }
+                };
 
-    const panResponder = useRef(PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onPanResponderMove: (event, gestureState) => {
-            // console.log(gestureState, event);
-            console.log("onPanResponderMove", _index);
-            animatedValue.setValue({ x: gestureState.dx + (_index * WINDOW_WIDTH), y: gestureState.dy });
-        },
-        onPanResponderRelease: (event, gestureState) => {
-            // console.log(gestureState, event);
-            // animatedValue.setValue({ x: 0, y: 0 });
-            console.log("onPanResponderRelease", _index);
+                const onLongPress = () => {
+                    navigation.emit({
+                        type: "tabLongPress",
+                        target: route.key
+                    });
+                };
+                // modify inputRange for custom behavior
+                const inputRange = state.routes.map((_, i) => i);
+                // const opacity = Animated.interpolate(position, {
+                //     inputRange,
+                //     outputRange: inputRange.map((i) => (i === index ? 1 : 0))
+                // });
 
-            if (gestureState.dx > (WINDOW_WIDTH * 0.25)) {
-                // swipe left
-                // console.log("swipe left");
-                _index++;
-                Animated.timing(animatedValue, {
-                    toValue: { x: (WINDOW_WIDTH * Math.abs(_index)), y: 0 },
-                    useNativeDriver: false,
-                    easing: Easing.ease,
-                    duration: 300
-                }).start();
-            }
-
-            if (gestureState.dx < -(WINDOW_WIDTH * 0.25)) {
-                // swipe right
-                _index--;
-                console.log("swipe right", _index, Math.abs(_index), -(WINDOW_WIDTH * Math.abs(_index)));
-                Animated.timing(animatedValue, {
-                    toValue: { x: -(WINDOW_WIDTH * Math.abs(_index)), y: 0 },
-                    useNativeDriver: false,
-                    easing: Easing.ease,
-                    duration: 300
-                }).start();
-
-            } else {
-                Animated.timing(animatedValue, {
-                    toValue: { x: -(WINDOW_WIDTH * Math.abs(_index)), y: 0 },
-                    useNativeDriver: false,
-                    easing: Easing.elastic(2.5),
-                    duration: 600
-                }).start();
-            }
-
-        }
-    })).current;
-
-
-    const animatedValue = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
-
-    function card(index: number, data: { id: number, img: ImageRequireSource }) {
-        console.log(index);
-
-        const cardAnimation = {
-            transform: [
-                { translateX: animatedValue.x },
-                { translateY: 0 },
-                { rotate: "0deg" }
-            ]
-        };
-
-        return <Animated.View
-            key={data.id}
-            style={{ ...cardAnimation, width: WINDOW_WIDTH, height: WINDOW_HEIGHT, alignItems: "center" }}>
-            <Text style={{ fontWeight: "bold", textAlign: "center", fontSize: 23 }}>{data.id}</Text>
-            <Image source={data.img}
-                   style={{ width: "90%", height: "90%", resizeMode: "contain" }} />
-        </Animated.View>;
-    }
-
-
-    return <SafeAreaView
-        style={{ flex: 1, backgroundColor: "#eab676", flexDirection: "row" }} {...panResponder.panHandlers}>
-
-        {data.map((item, index) => {
-            return card(index, item);
-        })}
-
-    </SafeAreaView>;
+                return (
+                    <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityState={isFocused ? { selected: true } : {}}
+                        accessibilityLabel={options.tabBarAccessibilityLabel}
+                        testID={options.tabBarTestID}
+                        onPress={onPress}
+                        onLongPress={onLongPress}
+                        style={{ flex: 1 }}
+                    >
+                        <Animated.Text style={{ opacity: 1 }}>{label}</Animated.Text>
+                    </TouchableOpacity>
+                );
+            })}
+        </View>
+    );
 }
 
-export default React.memo(App);
+// let cmd2 = "";
+
+let running = false;
+let timeoutId: NodeJS.Timeout | null = null;
+
+
+function HomeScreen() {
+    const [cmd, setCmd] = useState("");
+    const [value, setValue] = useState<string>("");
+    const debouncedValue = useDebounce<string>(cmd, 500);
+    const [sliderValue, setSliderValue] = useState<number>(1);
+
+
+    // // Fetch API (optional)
+    // useEffect(() => {
+    //     // Do fetch here...
+    //     // Triggers when "debouncedValue" changes
+    //
+    //     console.log("Fetching...", debouncedValue);
+    //
+    // }, [debouncedValue]);
+    useEffect(() => {
+        return () => {
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+        };
+    }, []);
+
+    useEffect(() => {
+        console.log("useEffect...", cmd);
+    }, [cmd]);
+
+    const onSubmit = () => {
+        console.log("Submitting...", new Date().getTime().toString());
+        // setValue(new Date().getTime().toString());
+    };
+
+    const onSlidingComplete = (e: number | number[]) => {
+        console.log("Sliding completed", e);
+        if (typeof e === "number") {
+
+        } else {
+            // setCmd(JSON.stringify({ "cmd": "set_speed", "speed": e[0], ti`me: new Date().getTime() }));
+            // cmd2 = JSON.stringify({ "cmd": "set_speed", "speed": e[0], time: new Date().getTime() });
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+            timeoutId = setTimeout(() => {
+                setCmd(JSON.stringify({ "cmd": "set_speed", "speed": e[0], time: new Date().getTime() }));
+            }, 500);
+        }
+    };
+    return (
+        <View style={{ flex: 1 }}>
+            <Text>Home!</Text>
+
+
+            <TouchableOpacity onPress={onSubmit}>
+                <Text>Go to Details</Text>
+            </TouchableOpacity>
+
+
+            <View style={{
+                flex: 1,
+                marginLeft: 10,
+                marginRight: 10
+            }}>
+                <Slider
+
+
+                    minimumValue={0}
+                    maximumValue={250}
+
+                    value={sliderValue}
+
+                    onValueChange={value => setSliderValue(typeof value === "number" ? value : value[0])}
+                    onSlidingComplete={onSlidingComplete}
+                />
+                <Text>Value: {sliderValue}</Text>
+            </View>
+
+
+        </View>
+    );
+}
+
+function SettingsScreen() {
+    return (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+            <Text>Settings!</Text>
+        </View>
+    );
+}
+
+function ProfileScreen() {
+    return (
+        <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+            <Text>Profile!</Text>
+        </View>
+    );
+}
+
+const Tab = createMaterialTopTabNavigator();
+
+export default function App() {
+    return (
+        <NavigationContainer>
+            <SafeAreaView style={{ flex: 1 }}>
+                <Tab.Navigator tabBar={(props) => <MyTabBar {...props} />}>
+                    <Tab.Screen name="Home" component={HomeScreen} />
+                    {/*<Tab.Screen name="Settings" component={SettingsScreen} />*/}
+                    {/*<Tab.Screen name="Profile" component={ProfileScreen} />*/}
+                </Tab.Navigator>
+            </SafeAreaView>
+        </NavigationContainer>
+    );
+}
